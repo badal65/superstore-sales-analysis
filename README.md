@@ -74,7 +74,7 @@ tests/test_pipeline.py                 deterministic regression tests
 .github/workflows/ci.yml               automated validation
 sql/analysis_queries.sql               SQL analysis queries
 notebooks/superstore_analysis.ipynb    notebook walkthrough
-visuals/                               presentation charts
+outputs/visuals/                      generated charts (after running the pipeline)
 Superstore_Sales_Analysis_Presentation.pptx
 ```
 
