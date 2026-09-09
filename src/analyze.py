@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """Run the Superstore analysis end-to-end.
 
-Usage: python src/analyze.py --input data/superstore.csv --output outputs
+The script can download the public source CSV when it is not present:
+
+    python src/analyze.py --download --output outputs
+
+It writes a cleaned dataset, a JSON summary, and four PNG charts.
 """
 from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
+from urllib.request import Request, urlopen
 
 import matplotlib
 matplotlib.use("Agg")
@@ -16,7 +21,20 @@ import pandas as pd
 import seaborn as sns
 
 
+DEFAULT_SOURCE_URL = "https://raw.githubusercontent.com/leonism/sample-superstore/master/data/superstore.csv"
+
+
+def download_data(target: Path, url: str = DEFAULT_SOURCE_URL) -> Path:
+    """Download the source CSV to *target* and return the saved path."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    request = Request(url, headers={"User-Agent": "superstore-sales-analysis/1.0"})
+    with urlopen(request, timeout=60) as response:
+        target.write_bytes(response.read())
+    return target
+
+
 def load_data(path: Path) -> pd.DataFrame:
+    """Load and standardize the Sample Superstore transaction data."""
     df = pd.read_csv(path, encoding="latin1")
     df.columns = [str(c).strip().lower().replace(" ", "_").replace("-", "_") for c in df.columns]
     required = {"order_id", "order_date", "sales", "profit", "category", "sub_category", "region"}
@@ -37,6 +55,7 @@ def load_data(path: Path) -> pd.DataFrame:
 
 
 def make_charts(df: pd.DataFrame, output: Path) -> None:
+    """Create the four presentation-ready charts."""
     sns.set_theme(style="whitegrid")
     output.mkdir(parents=True, exist_ok=True)
     category = df.groupby("category", as_index=False).agg(sales=("sales", "sum"), profit=("profit", "sum"))
@@ -78,6 +97,7 @@ def make_charts(df: pd.DataFrame, output: Path) -> None:
 
 
 def run(input_path: Path, output: Path) -> dict:
+    """Run cleaning, aggregation, summary generation, and chart creation."""
     df = load_data(input_path)
     output.mkdir(parents=True, exist_ok=True)
     df.to_csv(output / "superstore_cleaned.csv", index=False)
@@ -105,10 +125,21 @@ def run(input_path: Path, output: Path) -> dict:
     return summary
 
 
-if __name__ == "__main__":
+def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze Sample Superstore sales data")
-    parser.add_argument("--input", type=Path, default=Path("data/superstore.csv"))
-    parser.add_argument("--output", type=Path, default=Path("outputs"))
+    parser.add_argument("--input", type=Path, default=Path("data/superstore.csv"), help="Input CSV path")
+    parser.add_argument("--output", type=Path, default=Path("outputs"), help="Output directory")
+    parser.add_argument("--download", action="store_true", help="Download the source CSV when --input is missing")
+    parser.add_argument("--source-url", default=DEFAULT_SOURCE_URL, help="Source CSV URL used with --download")
     args = parser.parse_args()
+    if not args.input.exists():
+        if not args.download:
+            parser.error(f"Input file not found: {args.input}. Re-run with --download to fetch the public dataset.")
+        print(f"Downloading source data to {args.input} ...")
+        download_data(args.input, args.source_url)
     result = run(args.input, args.output)
     print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()
